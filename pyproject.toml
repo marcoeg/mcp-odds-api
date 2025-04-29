@@ -1,0 +1,15 @@
+[project]
+name = "mcp-odds-api"
+version = "0.1.0"
+description = "An MCP server to interact with a the the odds-api API."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "requests>=2.32",
+ "mcp>=1.0.0",
+ "python-dotenv>=1.0.1",
+ "uvicorn>=0.27.0",
+ "starlette>=0.36.0",
+ "typer>=0.15.2",
+ "fastmcp>=0.4.1",
+]
