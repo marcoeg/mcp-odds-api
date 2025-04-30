@@ -13,6 +13,8 @@ ODDS_API_KEY = config.api_key
 if not ODDS_API_KEY:
     raise ValueError("ODDS_API_KEY environment variable not set")
 
+odds_api_regions = config.regions
+
 MCP_SERVER_NAME = "mcp-odds-api"
 
 logging.basicConfig(
@@ -118,7 +120,6 @@ class OddsAPIClient:
     async def get_odds(
         self,
         sport: str,
-        regions: List[str],
         markets: Optional[List[str]] = None,
         date_format: str = "iso",
         odds_format: str = "decimal",
@@ -133,7 +134,6 @@ class OddsAPIClient:
         
         Args:
             sport: Sport key from the /sports endpoint
-            regions: List of regions (us, us2, uk, au, eu)
             markets: List of markets (h2h, spreads, totals, outrights)
             date_format: Format for dates (iso, unix)
             odds_format: Format for odds (decimal, american)
@@ -148,7 +148,7 @@ class OddsAPIClient:
             List of odds data or None if the request failed
         """
         params = {
-            "regions": ",".join(regions),
+            "regions": ",".join(odds_api_regions),
             "dateFormat": date_format,
             "oddsFormat": odds_format
         }
@@ -178,11 +178,10 @@ class OddsAPIClient:
         response = await self.make_request(endpoint, params)
         return response
     
-    async def get_event_odds(
+    async def get_event_odds_(
         self,
         sport: str,
         event_id: str,
-        regions: List[str],
         markets: Optional[List[str]] = None,
         date_format: str = "iso",
         odds_format: str = "decimal"
@@ -201,13 +200,71 @@ class OddsAPIClient:
             Event odds data or None if the request failed
         """
         params = {
-            "regions": ",".join(regions),
+            "regions": ",".join(odds_api_regions),
             "dateFormat": date_format,
             "oddsFormat": odds_format
         }
         
         if markets:
             params["markets"] = ",".join(markets)
+        
+        endpoint = f"sports/{sport}/events/{event_id}/odds"
+        response = await self.make_request(endpoint, params)
+        return response
+
+    async def get_event_odds(
+        self,
+        sport: str,
+        event_id: str,
+        markets: Optional[List[str]] = None,
+        date_format: str = "iso",
+        odds_format: str = "decimal",
+        bookmakers: Optional[List[str]] = None,
+        commence_time_from: Optional[str] = None,
+        commence_time_to: Optional[str] = None,
+        include_links: bool = False,
+        include_sids: bool = False
+    ) -> Dict[str, Any] | None:
+        """Get odds for a specific event.
+        
+        Args:
+            sport: Sport key from the /sports endpoint
+            event_id: Event ID
+            markets: List of markets (can include any available market)
+            date_format: Format for dates (iso, unix)
+            odds_format: Format for odds (decimal, american)
+            bookmakers: Optional list of bookmakers to include
+            commence_time_from: Filter events starting on/after (ISO format)
+            commence_time_to: Filter events starting on/before (ISO format)
+            include_links: Include bookmaker links if available
+            include_sids: Include source IDs if available
+            
+        Returns:
+            Event odds data or None if the request failed
+        """
+        params = {
+            "regions": ",".join(odds_api_regions),
+            "dateFormat": date_format,
+            "oddsFormat": odds_format
+        }
+        
+        if markets:
+            params["markets"] = ",".join(markets)
+            
+        if bookmakers:
+            params["bookmakers"] = ",".join(bookmakers)
+            
+        if commence_time_from:
+            params["commenceTimeFrom"] = commence_time_from
+            
+        if commence_time_to:
+            params["commenceTimeTo"] = commence_time_to
+            
+        if include_links:
+            params["includeLinks"] = "true"
+            
+        if include_sids:
+            params["includeSids"] = "true"
         
         endpoint = f"sports/{sport}/events/{event_id}/odds"
         response = await self.make_request(endpoint, params)
@@ -262,6 +319,7 @@ class OddsAPIClient:
         endpoint = f"sports/{sport}/events"
         response = await self.make_request(endpoint, params)
         return response
+    
 # Example usage
 async def main():
     from .utils import format_odds
@@ -270,6 +328,7 @@ async def main():
     # Initialize the client
     client = OddsAPIClient(api_key=ODDS_API_KEY)
     
+    """
     # Get soccer sports
     soccer_sports = await client.get_sports(include_all=True, filter_group="Soccer")
     if soccer_sports:
@@ -277,23 +336,24 @@ async def main():
         for sport in soccer_sports:
             print(f"{sport['key']} - {sport['title']} - {sport['description']}")
 
-    # Get odds for Italian Serie A soccer games
-    odds = await client.get_odds(
-        sport="soccer_italy_serie_a",
-        regions=["us"],
-        markets=["h2h", "spreads", "totals"],
-        include_links=True
-    )
-    if odds:
-        print(f"Found odds for {len(odds)} events")
-        print(format_odds(odds))
+
 
     # Get participants for a sport
     participants = await client.get_participants(sport="soccer_italy_serie_b")
     if participants:
         print(f"Found {len(participants)} participants")
         print(json.dumps(participants, indent=2))
-
+    """
+    # Get odds for Italian Serie A soccer games
+    odds = await client.get_odds(
+        sport="soccer_italy_serie_a",
+        markets=["h2h"],
+        include_links=True
+    )
+    if odds:
+        print(f"Found odds for {len(odds)} events")
+        print(format_odds(odds))
+    
     # Get events for Italian Serie A and filter for Roma matches
     events = await client.get_events(
         sport="soccer_italy_serie_a",
@@ -302,8 +362,9 @@ async def main():
     if events:
         # Filter for matches involving Roma (either home or away)
         roma_events = [event for event in events if "Roma" in event.get("home_team", "") or "Roma" in event.get("away_team", "")]
-        
+        #roma_events = [roma_events[0]]  # only to limit to one event for testing
         print(f"\nFound {len(roma_events)} events with Roma:")
+
         for event in roma_events:
             print(f"{event['away_team']} @ {event['home_team']} - {event['commence_time']}")
         
@@ -313,14 +374,20 @@ async def main():
             for event in roma_events:
                 event_id = event['id']
                 event_odds = await client.get_event_odds(
+                    include_links=True,
+                    include_sids=True,
                     sport="soccer_italy_serie_a",
                     event_id=event_id,
-                    regions=["us"],
-                    markets=["h2h", "spreads", "totals"],
+                    markets=["h2h", "spreads", "totals","alternate_spreads","alternate_totals","btts",
+                             "draw_no_bet","h2h_3_way","team_totals","alternate_team_totals","h2h_h1","h2h_h2",
+                            "h2h_3_way_h1","h2h_3_way_h2","spreads_h1","spreads_h2","alternate_spreads_h1","totals_h1","totals_h2",
+                            "alternate_totals_h1","alternate_team_totals_h1","alternate_team_totals_h2",
+                             "player_goal_scorer_anytime","player_first_goal_scorer","player_last_goal_scorer","player_to_receive_card",
+                             "player_to_receive_red_card","player_shots_on_target","player_shots","player_assists"],
                     date_format="iso",
                     odds_format="decimal"
-                )
-                
+                )               
+
                 if event_odds:
                     print(f"\n{'='*60}")
                     # Check the structure of event_odds and adapt as needed

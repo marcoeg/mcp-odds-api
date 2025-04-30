@@ -27,6 +27,14 @@ class OddsAPIConfig:
         """Get the odds-api api key"""
         return os.environ["ODDS_API_KEY"]
 
+    @property
+    def regions(self) -> int:
+        """Get the array of regions .
+
+        Default: "us".
+        """
+        return os.environ.get("ODDS_API_REGIONS", "us").split(",")
+
     def _validate_required_vars(self) -> None:
         """Validate that all required environment variables are set.
 
