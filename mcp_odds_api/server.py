@@ -343,6 +343,7 @@ async def main():
     if participants:
         print(f"Found {len(participants)} participants")
         print(json.dumps(participants, indent=2))
+        
     # Get odds for Italian Serie A soccer games
     odds = await client.get_odds(
         sport="soccer_italy_serie_a",
