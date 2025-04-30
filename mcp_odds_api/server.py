@@ -134,69 +134,48 @@ async def get_participants() -> List[Dict[str, Any]] | None:
     response = await make_request(endpoint)
     return response
 
+@mcp.tool(name="get_odds", description="Get odds for all forthcoming events (matches) for selected betting markets.")
 async def get_odds(
     markets: Optional[List[str]] = None,
-    date_format: str = "iso",
-    odds_format: str = "decimal",
-    event_ids: Optional[List[str]] = None,
-    bookmakers: Optional[List[str]] = None,
-    commence_time_from: Optional[str] = None,
-    commence_time_to: Optional[str] = None,
-    include_links: bool = False,
-    include_sids: bool = False
 ) -> List[Dict[str, Any]] | None:
     """Get odds for a sport.
     
     Args:
         markets: List of markets (h2h, spreads, totals, outrights)
-        date_format: Format for dates (iso, unix)
-        odds_format: Format for odds (decimal, american)
-        event_ids: Optional list of event IDs to filter by
         bookmakers: Optional list of bookmakers to include
-        commence_time_from: Filter events starting on/after (ISO format)
-        commence_time_to: Filter events starting on/before (ISO format)
-        include_links: Include bookmaker links if available
-        include_sids: Include source IDs if available
         
     Returns:
         List of odds data or None if the request failed
     """
     params = {
         "regions": ",".join(odds_api_regions),
-        "dateFormat": date_format,
-        "oddsFormat": odds_format
+        "dateFormat": "iso",
+        "oddsFormat": "decimal",
+        "includeLinks": True,
+        "includeSids": True
     }
     
     if markets:
         params["markets"] = ",".join(markets)
-    
-    if event_ids:
-        params["eventIds"] = ",".join(event_ids)
+
         
-    if bookmakers:
-        params["bookmakers"] = ",".join(bookmakers)
+    #if bookmakers:
+    #    params["bookmakers"] = ",".join(bookmakers)
         
-    if commence_time_from:
-        params["commenceTimeFrom"] = commence_time_from
-        
-    if commence_time_to:
-        params["commenceTimeTo"] = commence_time_to
-        
-    if include_links:
-        params["includeLinks"] = "true"
-        
-    if include_sids:
-        params["includeSids"] = "true"
-    
+    #if commence_time_from:
+    #    params["commenceTimeFrom"] = commence_time_from
+    #    
+    #if commence_time_to:
+    #    params["commenceTimeTo"] = commence_time_to
+
     endpoint = f"sports/{odds_api_sport}/odds"
     response = await make_request(endpoint, params)
     return response
 
-@mcp.tool(name="get_event_odds", description="Get odds for a specific event.")
+@mcp.tool(name="get_event_odds", description="Get odds for a specific event (match) for selected betting markets.")
 async def get_event_odds(
     event_id: str,
     markets: Optional[List[str]] = None,
-    bookmakers: Optional[List[str]] = None,
 ) -> Dict[str, Any] | None:
     """Get odds for a specific event.
     
@@ -219,8 +198,8 @@ async def get_event_odds(
     if markets:
         params["markets"] = ",".join(markets)
         
-    if bookmakers:
-        params["bookmakers"] = ",".join(bookmakers)
+    #if bookmakers:
+    #    params["bookmakers"] = ",".join(bookmakers)
         
     #if commence_time_from:
     #    params["commenceTimeFrom"] = commence_time_from
@@ -232,7 +211,7 @@ async def get_event_odds(
     response = await make_request(endpoint, params)
     return response
 
-@mcp.tool(name="get_events", description="Get in-play and pre-match events for the selected league. If a team is specified, returns only the events for the specified team.")
+@mcp.tool(name="get_events", description="Get in-play and forthcoming events (matches). If a team is specified, returns only the events for the specified team.")
 async def get_events(
     team: Optional[str] = None,
 ) -> List[Dict[str, Any]] | None:
@@ -299,8 +278,7 @@ async def main():
         
     # Get odds for the selected sport. for instance Italian Serie A soccer games
     #odds = await get_odds(
-    #    markets=["h2h"],
-    #    include_links=True
+    #    markets=["h2h"]
     #)
     #if odds:
     #    print(f"Found odds for {len(odds)} events")
