@@ -18,6 +18,7 @@ if not ODDS_API_KEY:
 
 odds_api_regions = config.regions
 odds_api_key = config.api_key
+odds_api_sport = "soccer_italy_serie_a"
 
 MCP_SERVER_NAME = "mcp-odds-api"
 
@@ -32,6 +33,25 @@ deps = ["starlette", "python-dotenv", "uvicorn", "httpx"]
 mcp = FastMCP(MCP_SERVER_NAME, dependencies=deps)
 
 logger = logging.getLogger(__name__)
+
+async def set_api_sport(league: str):
+    """Set the current league.
+    
+    Args:
+        league: the league code in the dictionary.
+
+    Returns:
+        True if the league is in the dictionary and the odds_api_sport has been changed
+        Fals if the league is not in the dictionary
+    """
+    global odds_api_sport
+    from utils import get_league_info
+
+    if get_league_info(league):
+        odds_api_sport = league
+        return True
+    else:
+        return False 
 
 async def make_request(endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any] | None:
     """Make a request to the API with proper error handling.
@@ -102,8 +122,19 @@ async def get_sports(include_all: bool = False, filter_group: str = None) -> Lis
     
     return response
 
+async def get_participants() -> List[Dict[str, Any]] | None:
+    """Get participants for the selected sport.
+    
+    Args:
+        
+    Returns:
+        List of participants or None if the request failed
+    """
+    endpoint = f"sports/{odds_api_sport}/participants"
+    response = await make_request(endpoint)
+    return response
+
 async def get_odds(
-    sport: str,
     markets: Optional[List[str]] = None,
     date_format: str = "iso",
     odds_format: str = "decimal",
@@ -117,7 +148,6 @@ async def get_odds(
     """Get odds for a sport.
     
     Args:
-        sport: Sport key from the /sports endpoint
         markets: List of markets (h2h, spreads, totals, outrights)
         date_format: Format for dates (iso, unix)
         odds_format: Format for odds (decimal, american)
@@ -158,76 +188,32 @@ async def get_odds(
     if include_sids:
         params["includeSids"] = "true"
     
-    endpoint = f"sports/{sport}/odds"
+    endpoint = f"sports/{odds_api_sport}/odds"
     response = await make_request(endpoint, params)
     return response
 
-async def get_event_odds_(
-    sport: str,
-    event_id: str,
-    markets: Optional[List[str]] = None,
-    date_format: str = "iso",
-    odds_format: str = "decimal"
-) -> Dict[str, Any] | None:
-    """Get odds for a specific event.
-    
-    Args:
-        sport: Sport key from the /sports endpoint
-        event_id: Event ID
-        regions: List of regions (us, us2, uk, au, eu)
-        markets: List of markets (can include any available market)
-        date_format: Format for dates (iso, unix)
-        odds_format: Format for odds (decimal, american)
-        
-    Returns:
-        Event odds data or None if the request failed
-    """
-    params = {
-        "regions": ",".join(odds_api_regions),
-        "dateFormat": date_format,
-        "oddsFormat": odds_format
-    }
-    
-    if markets:
-        params["markets"] = ",".join(markets)
-    
-    endpoint = f"sports/{sport}/events/{event_id}/odds"
-    response = await make_request(endpoint, params)
-    return response
-
+@mcp.tool(name="get_event_odds", description="Get odds for a specific event.")
 async def get_event_odds(
-    sport: str,
     event_id: str,
     markets: Optional[List[str]] = None,
-    date_format: str = "iso",
-    odds_format: str = "decimal",
     bookmakers: Optional[List[str]] = None,
-    commence_time_from: Optional[str] = None,
-    commence_time_to: Optional[str] = None,
-    include_links: bool = False,
-    include_sids: bool = False
 ) -> Dict[str, Any] | None:
     """Get odds for a specific event.
     
     Args:
-        sport: Sport key from the /sports endpoint
         event_id: Event ID
         markets: List of markets (can include any available market)
-        date_format: Format for dates (iso, unix)
-        odds_format: Format for odds (decimal, american)
         bookmakers: Optional list of bookmakers to include
-        commence_time_from: Filter events starting on/after (ISO format)
-        commence_time_to: Filter events starting on/before (ISO format)
-        include_links: Include bookmaker links if available
-        include_sids: Include source IDs if available
         
     Returns:
         Event odds data or None if the request failed
     """
     params = {
         "regions": ",".join(odds_api_regions),
-        "dateFormat": date_format,
-        "oddsFormat": odds_format
+        "dateFormat":  "iso",
+        "oddsFormat": "decimal",
+        "includeLinks": True,
+        "includeSids": True
     }
     
     if markets:
@@ -236,69 +222,61 @@ async def get_event_odds(
     if bookmakers:
         params["bookmakers"] = ",".join(bookmakers)
         
-    if commence_time_from:
-        params["commenceTimeFrom"] = commence_time_from
-        
-    if commence_time_to:
-        params["commenceTimeTo"] = commence_time_to
-        
-    if include_links:
-        params["includeLinks"] = "true"
-        
-    if include_sids:
-        params["includeSids"] = "true"
+    #if commence_time_from:
+    #    params["commenceTimeFrom"] = commence_time_from
+    #    
+    #if commence_time_to:
+    #    params["commenceTimeTo"] = commence_time_to
     
-    endpoint = f"sports/{sport}/events/{event_id}/odds"
+    endpoint = f"sports/{odds_api_sport}/events/{event_id}/odds"
     response = await make_request(endpoint, params)
     return response
 
-async def get_participants(sport: str) -> List[Dict[str, Any]] | None:
-    """Get participants for a sport.
-    
-    Args:
-        sport: Sport key from the /sports endpoint
-        
-    Returns:
-        List of participants or None if the request failed
-    """
-    endpoint = f"sports/{sport}/participants"
-    response = await make_request(endpoint)
-    return response
-
+@mcp.tool(name="get_events", description="Get in-play and pre-match events for the selected league. If a team is specified, returns only the events for the specified team.")
 async def get_events(
-    sport: str,
-    date_format: str = "iso",
-    event_ids: Optional[List[str]] = None,
-    commence_time_from: Optional[str] = None,
-    commence_time_to: Optional[str] = None
+    team: Optional[str] = None,
 ) -> List[Dict[str, Any]] | None:
-    """Get events for a sport.
+    """Get in-play and pre-match events for the selected league. If a team is specified, returns only the events for the specified team. 
     
     Args:
-        sport: Sport key from the /sports endpoint
-        date_format: Format for dates (iso, unix)
-        event_ids: Optional list of event IDs to filter by
-        commence_time_from: Filter events starting on/after (ISO format)
-        commence_time_to: Filter events starting on/before (ISO format)
-        
+        team: Optional. If present list only the events for the team.
+
     Returns:
-        List of events or None if the request failed
+        List of in-play and pre-match events or None if the request failed.
+    
+    Example response:
+        [
+            {
+                'id': 'd10cd88092145c5cc79d6f45dbf65599', 
+                'sport_key': 'soccer_italy_serie_a', 
+                'sport_title': 'Serie A - Italy', 
+                'commence_time': '2025-05-12T18:45:00Z', 
+                'home_team': 'Atalanta BC', 
+                'away_team': 'AS Roma'
+            },
+            {
+                'id': 'd10cd88092145c5cc79d6f45dbf65599', 
+                'sport_key': 'soccer_italy_serie_a', 
+                'sport_title': 'Serie A - Italy', 
+                'commence_time': '2025-05-12T18:45:00Z', 
+                'home_team': 'Atalanta BC', 
+                'away_team': 'AS Roma'
+            }
+        ]
     """
     params = {
-        "dateFormat": date_format
+        "dateFormat": "iso"
     }
-    
-    if event_ids:
-        params["eventIds"] = ",".join(event_ids)
-        
-    if commence_time_from:
-        params["commenceTimeFrom"] = commence_time_from
-        
-    if commence_time_to:
-        params["commenceTimeTo"] = commence_time_to
-    
-    endpoint = f"sports/{sport}/events"
-    response = await make_request(endpoint, params)
+    endpoint = f"sports/{odds_api_sport}/events"
+    events = await make_request(endpoint, params)
+
+    if team:
+        if events:
+            # Filter for matches involving Roma (either home or away)
+            response = [event for event in events if team in event.get("home_team", "") or team in event.get("away_team", "")]
+    else:
+        response = events        
+
     return response
 
 # Example usage
@@ -307,39 +285,35 @@ async def main():
     import json
    
     # Get soccer sports
-    soccer_sports = await get_sports(include_all=True, filter_group="Soccer")
-    if soccer_sports:
-        print(f"Found {len(soccer_sports)} soccer sports")
-        for sport in soccer_sports:
-            print(f"{sport['key']} - {sport['title']} - {sport['description']}")
+    #soccer_sports = await get_sports(include_all=True, filter_group="Soccer")
+    #if soccer_sports:
+    #    print(f"Found {len(soccer_sports)} soccer sports")
+    #    for sport in soccer_sports:
+    #        print(f"{sport['key']} - {sport['title']} - {sport['description']}")
 
-    """
     # Get participants for a sport
-    participants = await get_participants(sport="soccer_italy_serie_b")
-    if participants:
-        print(f"Found {len(participants)} participants")
-        print(json.dumps(participants, indent=2))
+    #participants = await get_participants()
+    #if participants:
+    #    print(f"Found {len(participants)} participants")
+    #    print(json.dumps(participants, indent=2))
         
-    # Get odds for Italian Serie A soccer games
-    odds = await get_odds(
-        sport="soccer_italy_serie_a",
-        markets=["h2h"],
-        include_links=True
-    )
-    if odds:
-        print(f"Found odds for {len(odds)} events")
-        print(format_odds(odds))
-    """
+    # Get odds for the selected sport. for instance Italian Serie A soccer games
+    #odds = await get_odds(
+    #    markets=["h2h"],
+    #    include_links=True
+    #)
+    #if odds:
+    #    print(f"Found odds for {len(odds)} events")
+    #    print(format_odds(odds))
     
     # Get events for Italian Serie A and filter for Roma matches
     events = await get_events(
-        sport="soccer_italy_serie_a",
-        date_format="iso"
+        team="Roma"
     )
     if events:
         # Filter for matches involving Roma (either home or away)
-        roma_events = [event for event in events if "Roma" in event.get("home_team", "") or "Roma" in event.get("away_team", "")]
-        #roma_events = [roma_events[0]]  # only to limit to one event for testing
+        #roma_events = [event for event in events if "Roma" in event.get("home_team", "") or "Roma" in event.get("away_team", "")]
+        roma_events = events
         print(f"\nFound {len(roma_events)} events with Roma:")
 
         for event in roma_events:
@@ -351,18 +325,13 @@ async def main():
             for event in roma_events:
                 event_id = event['id']
                 event_odds = await get_event_odds(
-                    include_links=True,
-                    include_sids=True,
-                    sport="soccer_italy_serie_a",
                     event_id=event_id,
                     markets=["h2h", "spreads", "totals","alternate_spreads","alternate_totals","btts",
                              "draw_no_bet","h2h_3_way","team_totals","alternate_team_totals","h2h_h1","h2h_h2",
                             "h2h_3_way_h1","h2h_3_way_h2","spreads_h1","spreads_h2","alternate_spreads_h1","totals_h1","totals_h2",
                             "alternate_totals_h1","alternate_team_totals_h1","alternate_team_totals_h2",
                              "player_goal_scorer_anytime","player_first_goal_scorer","player_last_goal_scorer","player_to_receive_card",
-                             "player_to_receive_red_card","player_shots_on_target","player_shots","player_assists"],
-                    date_format="iso",
-                    odds_format="decimal"
+                             "player_to_receive_red_card","player_shots_on_target","player_shots","player_assists"]
                 )               
 
                 if event_odds:
