@@ -328,7 +328,7 @@ async def main():
     # Initialize the client
     client = OddsAPIClient(api_key=ODDS_API_KEY)
     
-    """
+   
     # Get soccer sports
     soccer_sports = await client.get_sports(include_all=True, filter_group="Soccer")
     if soccer_sports:
@@ -337,13 +337,12 @@ async def main():
             print(f"{sport['key']} - {sport['title']} - {sport['description']}")
 
 
-
+    """
     # Get participants for a sport
     participants = await client.get_participants(sport="soccer_italy_serie_b")
     if participants:
         print(f"Found {len(participants)} participants")
         print(json.dumps(participants, indent=2))
-    """
     # Get odds for Italian Serie A soccer games
     odds = await client.get_odds(
         sport="soccer_italy_serie_a",
@@ -353,6 +352,7 @@ async def main():
     if odds:
         print(f"Found odds for {len(odds)} events")
         print(format_odds(odds))
+    """
     
     # Get events for Italian Serie A and filter for Roma matches
     events = await client.get_events(
