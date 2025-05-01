@@ -35,6 +35,14 @@ class OddsAPIConfig:
         """
         return os.environ.get("ODDS_API_REGIONS", "us").split(",")
 
+    @property
+    def sport(self) -> int:
+        """Get the array of regions .
+
+        Default: "us".
+        """
+        return os.environ.get("ODDS_API_SPORT", "soccer_italy_serie_a")
+
     def _validate_required_vars(self) -> None:
         """Validate that all required environment variables are set.
 

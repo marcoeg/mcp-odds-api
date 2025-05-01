@@ -1,4 +1,4 @@
-from mcp_bauplan.server import mcp
+from mcp_odds_api.server import mcp
 from starlette.applications import Starlette
 from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
@@ -6,6 +6,7 @@ from starlette.routing import Mount, Route
 from mcp.server import Server
 import uvicorn
 import argparse
+from starlette.middleware.cors import CORSMiddleware  # ✅ Add this import
 
 def create_starlette_app(mcp_server: Server, *, debug: bool = False) -> Starlette:
     """Create a Starlette application that can serve the provided mcp server with SSE."""
@@ -23,13 +24,28 @@ def create_starlette_app(mcp_server: Server, *, debug: bool = False) -> Starlett
                 mcp_server.create_initialization_options(),
             )
 
-    return Starlette(
+    # ✅ Create Starlette app with routes
+    app = Starlette(
         debug=debug,
         routes=[
             Route("/sse", endpoint=handle_sse),
             Mount("/messages/", app=sse.handle_post_message),
         ],
     )
+
+    # ✅ Enable CORS for all origins (or restrict to ["http://127.0.0.1:8077"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    return app
+
+
+
 
 def main():
     # Define a single parser for all arguments

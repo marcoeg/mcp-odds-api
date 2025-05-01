@@ -5,6 +5,9 @@ import os
 import httpx
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlencode
+from pydantic import BaseModel, Field
+from typing import Annotated, Optional
+from pydantic import StringConstraints
 
 env_path = os.path.join(os.getcwd(), ".env")
 load_dotenv(env_path)
@@ -18,7 +21,7 @@ if not ODDS_API_KEY:
 
 odds_api_regions = config.regions
 odds_api_key = config.api_key
-odds_api_sport = "soccer_italy_serie_a"
+odds_api_sport = config.sport
 
 MCP_SERVER_NAME = "mcp-odds-api"
 
@@ -98,7 +101,6 @@ async def make_request(endpoint: str, params: Dict[str, Any] = None) -> Dict[str
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return None
-    
 
 async def get_sports(include_all: bool = False, filter_group: str = None) -> List[Dict[str, Any]] | None:
     """Get all available sports.
@@ -134,9 +136,12 @@ async def get_participants() -> List[Dict[str, Any]] | None:
     response = await make_request(endpoint)
     return response
 
+class OddsQuery(BaseModel):
+    markets: List[str] = Field(default_factory=lambda: ["h2h"])
+
 @mcp.tool(name="get_odds", description="Get odds for all forthcoming events (matches) for selected betting markets.")
 async def get_odds(
-    markets: Optional[List[str]] = None,
+        markets: List[str] = ["h2h"]
 ) -> List[Dict[str, Any]] | None:
     """Get odds for a sport.
     
@@ -147,17 +152,18 @@ async def get_odds(
     Returns:
         List of odds data or None if the request failed
     """
+    validated = OddsQuery(markets=markets)
+
     params = {
         "regions": ",".join(odds_api_regions),
         "dateFormat": "iso",
         "oddsFormat": "decimal",
-        "includeLinks": True,
-        "includeSids": True
+        "includeLinks": "true",
+        "includeSids": "true"
     }
     
     if markets:
         params["markets"] = ",".join(markets)
-
         
     #if bookmakers:
     #    params["bookmakers"] = ",".join(bookmakers)
@@ -172,10 +178,14 @@ async def get_odds(
     response = await make_request(endpoint, params)
     return response
 
+class EventOddsQuery(BaseModel):
+    event_id: str
+    markets: List[str] = Field(default_factory=lambda: ["h2h"])
+
 @mcp.tool(name="get_event_odds", description="Get odds for a specific event (match) for selected betting markets.")
 async def get_event_odds(
     event_id: str,
-    markets: Optional[List[str]] = None,
+    markets: List[str]
 ) -> Dict[str, Any] | None:
     """Get odds for a specific event.
     
@@ -187,12 +197,14 @@ async def get_event_odds(
     Returns:
         Event odds data or None if the request failed
     """
+    validated = EventOddsQuery(event_id=event_id, markets=markets)
+
     params = {
         "regions": ",".join(odds_api_regions),
         "dateFormat":  "iso",
         "oddsFormat": "decimal",
-        "includeLinks": True,
-        "includeSids": True
+        "includeLinks": "true",
+        "includeSids": "true"
     }
     
     if markets:
@@ -211,10 +223,11 @@ async def get_event_odds(
     response = await make_request(endpoint, params)
     return response
 
+class EventQuery(BaseModel):
+    team: Optional[str] = None
+
 @mcp.tool(name="get_events", description="Get in-play and forthcoming events (matches). If a team is specified, returns only the events for the specified team.")
-async def get_events(
-    team: Optional[str] = None,
-) -> List[Dict[str, Any]] | None:
+async def get_events(team: str) -> List[Dict[str, Any]] | None:
     """Get in-play and pre-match events for the selected league. If a team is specified, returns only the events for the specified team. 
     
     Args:
@@ -243,6 +256,8 @@ async def get_events(
             }
         ]
     """
+    validated = EventQuery(team=team)
+
     params = {
         "dateFormat": "iso"
     }
@@ -250,11 +265,15 @@ async def get_events(
     events = await make_request(endpoint, params)
 
     if team:
+        team_lower = team.lower()
         if events:
-            # Filter for matches involving Roma (either home or away)
-            response = [event for event in events if team in event.get("home_team", "") or team in event.get("away_team", "")]
+            response = [
+                event for event in events
+                if team_lower in event.get("home_team", "").lower()
+                or team_lower in event.get("away_team", "").lower()
+            ]
     else:
-        response = events        
+        response = events   
 
     return response
 
