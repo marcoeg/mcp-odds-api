@@ -7,13 +7,15 @@ A mimimalist Model Context Protocol MCP server to interact with the OddsAPI.
 >It supports both SSE and STDIO transports. 
 
 ## Tools
-The server implements the following tools to interact with Bauplan data tables:
-- `list_tables`:
-   - Lists all the tables in the configured namespace
-- `get_schema`:
-   - Get the schema of a data tables
-- `run_query`:
-   - Run a SELECT query on the specified table 
+The server implements the following tools to interact with the OddsAPI:
+
+- `get_events`:
+   - Get in-play and forthcoming events (matches). 
+
+- `get_odds`:
+   - Get odds for all forthcoming events (matches) for selected betting markets.
+- `get_event_odds`:
+   - Get odds for a specific event (match) for selected betting markets.
 
 ## Configuration
 
@@ -28,19 +30,16 @@ The server implements the following tools to interact with Bauplan data tables:
   "mcpServers": {
     "mcp-bauplan": {
       "command": "/path/to/uvx",
-      "args": ["mcp-bauplan"],
+      "args": ["mcp-odds-api"],
       "env": {
-        "BAUPLAN_API_KEY": "your-api-key",
-        "BAUPLAN_BRANCH": "your-branch",
-        "BAUPLAN_NAMESPACE": "your-namespace",
-        // Optional
-        "BAUPLAN_TIMEOUT": "query-timeout-secs" // default 30 seconds
+        "ODDS_API_KEY": "<your-api-odds-key>",
+        "ODDS_API_REGIONS": "<region1>", "<region2>",
+        "ODDS_API_SPORT": "<selected-sport-key>",
       }
     }
   }
 }
 ```
-
 3. Replace `/path/to/uvx` with the absolute path to the `uvx` executable. Find the path with `which uvx` command in a terminal. This ensures that the correct version of `uvx` is used when starting the server.
 
 4. Restart Claude Desktop to apply the changes.
@@ -48,7 +47,7 @@ The server implements the following tools to interact with Bauplan data tables:
 ## Run the stand-alone SSE server
 Create a .env file from .env.example and then execute the following command:
 ```bash
-$ uvx --env-file /path/to/.env mcp-bauplan --transport sse --port 9090
+$ uvx --env-file /path/to/.env mcp-odds-api --transport sse --port 9090
 ```
 >Note the use of `nvx` and not `uvx` will fetch `mcp-bauplan` from the default registry https://pypi.org.
 
@@ -58,21 +57,21 @@ $ uvx --env-file /path/to/.env mcp-bauplan --transport sse --port 9090
 
 1. **Prerequisites**:
    - Python 3.10 or higher.
-   - A Bauplan API key ([request here](https://www.bauplanlabs.com/#join)).
+   - A OddsAPI key ([request here](https://the-odds-api.com/account/)).
    - `uv` package manager ([installation](https://docs.astral.sh/uv/)).
 
 2. **Clone the Repository**:
 ```bash
-git clone https://github.com/marcoeg/mcp-bauplan
+git clone https://github.com/marcoeg/mcp-odds-api
 cd mcp-nvd
 ```
 
 3. **Set Environment Variables**:
    - Create a `.env` file in the project root:
      ```
-     BAUPLAN_API_KEY=your-api-key
-     BAUPLAN_BRANCH=your-branch
-     BAUPLAN_NAMESPACE=your-namespace
+    ODDS_API_KEY="<your-api-odds-key>"
+    ODDS_API_REGIONS="<region1>", "<region2>"
+    ODDS_API_SPORT="<selected-sport-key>"
      ```
 
 4. **Install Dependencies**:
@@ -81,35 +80,8 @@ uv sync
 uv pip install -e .
 ```
 
-### Run with the MCP Inspector
-```bash
-cd /path/to/the/repo
-source .env
-
-CLIENT_PORT=8077 SERVER_PORT=8078 npx @modelcontextprotocol/inspector \
-     uv run mcp-bauplan
- ```
->Note: omit `CLIENT_PORT=8077 SERVER_PORT=8078` if the standard ports are not conflicting.
-
-Then open the browser to the URL indicated by the MCP Inspector, typically `http://localhost:8077?proxyPort=8078`
-
-> Switch freely between `stdio` and `sse` transport types in the inspector. To use `sse` you need to run the server as explained below.
-
-### Testing with the SSE transport 
-
-#### Run the Server:
-```bash
-cd /path/to/the/repo
-source .env
-
-uv run mcp-bauplan --transport sse --port 9090
-```
-- Runs with SSE transport on port `9090` by default.
-
-Then open the browser to the URL indicated by the MCP Inspector. Select SSE Transport Type.
-
 ### Start the server with SSE transport
-```
+```bash
 $ uv run mcp-odds-api --transport sse --port 9090
 python-dotenv could not parse statement starting at line 2
 2025-04-30 19:35:34 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 2
@@ -120,13 +92,13 @@ INFO:     Uvicorn running on http://0.0.0.0:9090 (Press CTRL+C to quit)
 ```
 
 ### Run the Inspector:
-```
+```bash
 $ CLIENT_PORT=8077 TARGET_PORT=9090 \
-npx @modelcontextprotocol/inspector run \
-  --messages-path /messages \
-  --cors
+npx @modelcontextprotocol/inspector run
 
 Starting MCP inspector...
 ⚙️ Proxy server listening on port 6277
 🔍 MCP Inspector is up and running at http://127.0.0.1:8077 🚀
 ```
+
+Then open the browser to the URL indicated by the MCP Inspector. Select SSE Transport Type.

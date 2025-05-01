@@ -226,7 +226,7 @@ async def get_event_odds(
 class EventQuery(BaseModel):
     team: Optional[str] = None
 
-@mcp.tool(name="get_events", description="Get in-play and forthcoming events (matches). If a team is specified, returns only the events for the specified team.")
+@mcp.tool(name="get_events", description="Get in-play and forthcoming events (matches) for the specified team.")
 async def get_events(team: str) -> List[Dict[str, Any]] | None:
     """Get in-play and pre-match events for the selected league. If a team is specified, returns only the events for the specified team. 
     
